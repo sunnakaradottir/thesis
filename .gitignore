@@ -1,1 +1,2 @@
-old_material/**/*.pdf.DS_Store
+old_material/**/*.pdf
+.DS_Store
