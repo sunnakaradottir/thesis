@@ -2,6 +2,29 @@ using HTTP
 using JSON3
 
 
+
+function get_servers_by_benchmark(vendor, benchmark_id; benchmark_config=nothing, higher_is_better=true)
+    # Step 1: Call /servers with benchmark filters
+    url = "https://keeper.sparecores.net/servers"
+    params = [
+        "vendor" => vendor,
+        "benchmark_id" => benchmark_id,
+        "limit" => "-1"  # Get all servers
+    ]
+
+    # TODO: check if we need to filter by the exact configuration
+    # if !isnothing(benchmark_config)
+    #     config_json = JSON3.write(benchmark_config)
+    #     push!(params, "benchmark_config" => config_json)
+    # end
+
+    response = HTTP.get(url, query=params)
+    data = JSON3.read(response.body)
+
+    return data
+end
+
+
 function get_server_info(vendor, server_id)
     # server info and pricing
     url = "https://keeper.sparecores.net/servers"
