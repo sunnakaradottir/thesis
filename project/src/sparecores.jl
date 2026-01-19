@@ -46,21 +46,16 @@ function get_server_info(vendor, server_id)
         server_id = server.server_id,
         display_name = server.display_name,
         vcpus = server.vcpus,
-        memory = server.memory_amount,
+        cpu_allocation = server.cpu_allocation,
+        memory = server.memory_amount / 1024, # MB to GB
         price = server.min_price_ondemand
     )
 end
 
 
 function get_benchmark_score(vendor, server_id, benchmark_id; benchmark_config=nothing)
-    # server benchmark score
     url = "https://keeper.sparecores.net/server/$vendor/$server_id/benchmarks"
     params = ["benchmark_id" => benchmark_id]
-
-    if !isnothing(benchmark_config)
-        config_json = JSON3.write(benchmark_config)
-        push!(params, "benchmark_config" => config_json)
-    end
 
     response = HTTP.get(url, query=params)
     data = JSON3.read(response.body)
@@ -69,6 +64,27 @@ function get_benchmark_score(vendor, server_id, benchmark_id; benchmark_config=n
         error("No benchmark data found for $vendor/$server_id with benchmark $benchmark_id")
     end
 
+    # If config specified, find exact match
+    if !isnothing(benchmark_config)
+        matching = filter(data) do bench
+            # Compare each field in the config
+            config = bench.config
+            all(key -> haskey(config, key) && config[key] == benchmark_config[key],
+                keys(benchmark_config))
+        end
+
+        if length(matching) == 0
+            println("Available configs for $benchmark_id:")
+            for b in data[1:min(5, length(data))]  # Show first 5
+                println("  ", b.config, " -> score: ", b.score)
+            end
+            error("No benchmark found with exact config match: $benchmark_config")
+        end
+
+        return matching[1].score
+    end
+
+    # No config specified, return first result
     return data[1].score
 end
 
@@ -82,6 +98,7 @@ function get_current_server_performance(vendor, server_id, benchmark_id; benchma
         server_id = server_info.server_id,
         display_name = server_info.display_name,
         vcpus = server_info.vcpus,
+        cpu_allocation = server_info.cpu_allocation,
         memory = server_info.memory,
         score = score,
         price = server_info.price,

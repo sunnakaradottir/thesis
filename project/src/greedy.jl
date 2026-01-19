@@ -13,7 +13,7 @@ benchmark_config = Dict(
     "framework_version" => "3.3.0"
 )
 
-function better_servers_by_benchmark_score(vendor, benchmark_id, current_score; benchmark_config=nothing, higher_is_better=true)
+function better_servers_by_benchmark_score(vendor, benchmark_id, current_score, current_allocation; benchmark_config=nothing, higher_is_better=true)
     # call a function from sparecores.jl to get a list of servers
     servers = get_servers_by_benchmark(vendor, benchmark_id; benchmark_config=benchmark_config)
     println("DEBUG: Total servers returned from API: ", length(servers))
@@ -45,10 +45,16 @@ function better_servers_by_benchmark_score(vendor, benchmark_id, current_score; 
         end
     end
 
-
     println("DEBUG: Current score to beat: ", current_score)
     println("DEBUG: Higher is better: ", higher_is_better)
     println("DEBUG: Servers with better scores: ", length(better_servers))
+
+    # filter servers to have the same CPU allocation as the current server
+    better_servers = filter(better_servers) do server
+        return server.cpu_allocation == current_allocation
+    end
+
+    println("DEBUG: Servers with better scores and same CPU allocation: ", length(better_servers))
 
     return [
         (
@@ -70,7 +76,7 @@ function greedy_server_lookup(vendor_name, server_id, _benchmark_id; benchmark_c
 
     # look for servers with better benchmark scores
     better_servers = better_servers_by_benchmark_score(
-        vendor_name, benchmark_id, result.score;
+        vendor_name, benchmark_id, result.score, result.cpu_allocation;
         benchmark_config=benchmark_config, higher_is_better=true
     )
 
@@ -78,6 +84,8 @@ function greedy_server_lookup(vendor_name, server_id, _benchmark_id; benchmark_c
 
     # only keep servers with better price per performance
     current_price_per_perf = result.price_per_performance
+
+    println("\nCurrent price_per_perf: $current_price_per_perf")
     
     cost_effective = filter(better_servers) do s
         s.price / s.score < current_price_per_perf
@@ -85,11 +93,27 @@ function greedy_server_lookup(vendor_name, server_id, _benchmark_id; benchmark_c
 
     println("Found $(length(cost_effective)) cost-effective servers")
 
-    # calculate savings
+    # pick the best recommendation
+    sorted = sort(cost_effective, by = s -> s.price) # cheapest first
+    
+    if length(sorted) > 0
+        println("\nTop $(min(5, length(sorted))) recommendations:")
+        for (i, s) in enumerate(sorted[1:min(5, length(sorted))])
+            println("\n$i. $(s.display_name)")
+            println("   vCPUs: $(s.vcpus), Memory: $(s.memory / 1024) GB")
+            println("   Score: $(s.score) (vs $(result.score))")
+            println("   Price: \$$(s.price)/hr (vs \$$(result.price))")
 
+            cost_reduction = (current_price_per_perf - s.price/s.score) / current_price_per_perf
+            println("   Cost reduction: $(round(cost_reduction * 100, digits=2))%")
+        end
 
+        best = sorted[1]
+    else
+        println("No better cost-effective servers found")
+    end
 
-    # (maybe add later) repeat for cross-provider comparison
+    # (maybe add later) TODO: repeat for cross-provider comparison
     return 0
 end
 
