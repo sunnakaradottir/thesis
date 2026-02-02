@@ -1,6 +1,4 @@
 include("sparecores.jl")
-using JuMP
-using GLPK
 
 
 # hardcoded current server (user input)
@@ -18,12 +16,12 @@ function better_servers_by_benchmark_score(vendor, benchmark_id, current_score, 
     servers = get_servers_by_benchmark(vendor, benchmark_id; benchmark_config=benchmark_config)
     println("DEBUG: Total servers returned from API: ", length(servers))
 
-    # Check first few servers
+    # check first few servers
     if length(servers) > 0
         println("DEBUG: First server selected_benchmark_score: ", servers[8].selected_benchmark_score)
         println("DEBUG: First server price: ", servers[8].min_price_ondemand)
     end
-    # Count servers with valid scores
+    # count servers with valid scores
     valid_score_count = count(servers) do s
         !isnothing(s.selected_benchmark_score) && s.selected_benchmark_score != 0
     end
@@ -46,7 +44,6 @@ function better_servers_by_benchmark_score(vendor, benchmark_id, current_score, 
     end
 
     println("DEBUG: Current score to beat: ", current_score)
-    println("DEBUG: Higher is better: ", higher_is_better)
     println("DEBUG: Servers with better scores: ", length(better_servers))
 
     # filter servers to have the same CPU allocation as the current server
@@ -80,8 +77,6 @@ function greedy_server_lookup(vendor_name, server_id, _benchmark_id; benchmark_c
         benchmark_config=benchmark_config, higher_is_better=true
     )
 
-    println("Found $(length(better_servers)) better servers")
-
     # only keep servers with better price per performance
     current_price_per_perf = result.price_per_performance
 
@@ -91,7 +86,7 @@ function greedy_server_lookup(vendor_name, server_id, _benchmark_id; benchmark_c
         s.price / s.score < current_price_per_perf
     end
 
-    println("Found $(length(cost_effective)) cost-effective servers")
+    println("DEBUG: Servers with that also have a smaller price per performance: $(length(cost_effective))")
 
     # pick the best recommendation
     sorted = sort(cost_effective, by = s -> s.price) # cheapest first

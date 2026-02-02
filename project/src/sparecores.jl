@@ -4,7 +4,7 @@ using JSON3
 
 
 function get_servers_by_benchmark(vendor, benchmark_id; benchmark_config=nothing, higher_is_better=true)
-    # Step 1: Call /servers with benchmark filters
+    # servers for given provider and benchmark
     url = "https://keeper.sparecores.net/servers"
     params = [
         "vendor" => vendor,
@@ -86,6 +86,14 @@ function get_benchmark_score(vendor, server_id, benchmark_id; benchmark_config=n
 
     # No config specified, return first result
     return data[1].score
+end
+
+
+function get_vendors()
+    url = "https://keeper.sparecores.net/vendors"
+    response = HTTP.get(url)
+    data = JSON3.read(response.body)
+    return [v.vendor_id for v in data]
 end
 
 
