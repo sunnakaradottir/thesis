@@ -2,30 +2,30 @@
   "web_server": {
     "description": "Balanced web application workload - caching, encryption, general compute",
     "benchmarks": [
-      {"id": "redis", "weight": 0.4, "config": null},
-      {"id": "openssl", "weight": 0.35, "config": {"algo": "sha256", "block_size": 8192}},
-      {"id": "geekbench", "weight": 0.25, "config": null}
+      {"id": "redis:rps", "weight": 0.4},
+      {"id": "openssl", "weight": 0.35},
+      {"id": "geekbench:score", "weight": 0.25}
     ]
   },
   "compute_heavy": {
     "description": "CPU-intensive batch processing and number crunching",
     "benchmarks": [
-      {"id": "geekbench", "weight": 0.7, "config": null},
-      {"id": "openssl", "weight": 0.3, "config": {"algo": "sha256", "block_size": 8192}}
+      {"id": "geekbench:score", "weight": 0.7},
+      {"id": "openssl", "weight": 0.3}
     ]
   },
   "cache_intensive": {
     "description": "In-memory data stores, session management, real-time analytics",
     "benchmarks": [
-      {"id": "redis", "weight": 0.8, "config": null},
-      {"id": "geekbench", "weight": 0.2, "config": null}
+      {"id": "redis:rps", "weight": 0.8},
+      {"id": "geekbench:score", "weight": 0.2}
     ]
   },
   "crypto_heavy": {
     "description": "TLS termination, encryption-heavy workloads",
     "benchmarks": [
-      {"id": "openssl", "weight": 0.9, "config": {"algo": "sha256", "block_size": 8192}},
-      {"id": "geekbench", "weight": 0.1, "config": null}
+      {"id": "openssl", "weight": 0.9},
+      {"id": "geekbench:score", "weight": 0.1}
     ]
   }
 }
