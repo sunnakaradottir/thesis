@@ -3,7 +3,7 @@ using JSON3
 
 
 function config_match(api_val, profile_val)
-    """Compare config values, handling type mismatches (e.g. API returns 4.0, profile has 4)"""
+    """Compare config values, handling float/int mismatches from JSON parsing."""
     if api_val isa Number && profile_val isa Number
         return isapprox(api_val, profile_val)
     end
@@ -12,9 +12,7 @@ end
 
 
 function get_servers_by_benchmark(benchmark_id)
-    """
-        Fetch servers with benchmark scores for a given benchmark_id
-    """
+    """Fetch all servers that have a score for a given benchmark from the /servers endpoint."""
     url = "https://keeper.sparecores.net/servers"
     params = [
         "benchmark_id" => benchmark_id,
@@ -29,9 +27,7 @@ end
 
 
 function get_server_info(vendor, server_id)
-    """
-        Fetch hardware specs and pricing for a given server
-    """
+    """Fetch hardware specs and pricing for a specific server."""
     url = "https://keeper.sparecores.net/servers"
     params = [
         "vendor" => vendor,
@@ -59,6 +55,7 @@ end
 
 
 function get_benchmark_score(vendor, server_id, benchmark_id; benchmark_config=nothing)
+    """Fetch a specific benchmark score for a server, optionally filtering by config."""
     url = "https://keeper.sparecores.net/server/$vendor/$server_id/benchmarks"
 
     response = HTTP.get(url)
@@ -92,19 +89,7 @@ end
 
 
 function fetch_server_benchmarks(candidates, benchmark_configs; max_concurrent=10, max_retries=3)
-    """
-        Fetch config-specific benchmark scores for all candidate servers in parallel.
-        Respects API rate limit (300 req/min) with concurrency control and retry with backoff.
-
-        # Arguments
-        - `candidates`: Vector of server objects (from /servers endpoint)
-        - `benchmark_configs`: Vector of (benchmark_id, config_dict_or_nothing) tuples
-        - `max_concurrent`: Max parallel requests (default 10, conservative for rate limits)
-        - `max_retries`: Max retries on 429/transient errors
-
-        # Returns
-        - Dict mapping (vendor_id, server_id) => Dict(benchmark_id => score or nothing)
-    """
+    """Fetch config-specific scores for all candidates in parallel, with rate limit handling."""
     results = Dict{Tuple{String,String}, Dict{String, Union{Float64,Nothing}}}()
     total = length(candidates)
     completed = Threads.Atomic{Int}(0)
@@ -168,8 +153,8 @@ function get_vendors()
 end
 
 
-# server info, pricing and benchmark score
 function get_current_server_performance(vendor, server_id, benchmark_id; benchmark_config=nothing)
+    """Get combined server info + benchmark score for a single server (used by greedy approach)."""
     server_info = get_server_info(vendor, server_id)
     benchmark = get_benchmark_score(vendor, server_id, benchmark_id; benchmark_config=benchmark_config)
 
