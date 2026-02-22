@@ -22,40 +22,52 @@ function get_multi_benchmark_data(vendor, server_id, profile)
     benchmarks = profile["benchmarks"]
     weights = [b["weight"] for b in benchmarks]
     benchmark_ids = [b["id"] for b in benchmarks]
+    benchmark_configs = [(b["id"], get(b, "config", nothing)) for b in benchmarks]
 
     # get current server info (once)
     server_info = get_server_info(vendor, server_id)
 
-    # for each benchmark: get current score/config, then get candidates
-    current_scores = Dict{String, Float64}()
-    current_configs = Dict{String, Any}()
+    # candidate discovery: use /servers endpoint for each benchmark to find which servers have scores
     candidates_per_benchmark = Dict{String, Vector}()
-
     for bench in benchmarks
         bid = bench["id"]
-
-        # current server's score and config for this benchmark
-        result = get_benchmark_score(vendor, server_id, bid)
-        if isnothing(result)
-            error("Current server has no data for benchmark: $bid")
-        end
-        current_scores[bid] = result.score
-        current_configs[bid] = result.config
-
-        # candidates for this benchmark from all providers
         candidates_per_benchmark[bid] = get_servers_by_benchmark(bid)
     end
 
-    # find intersection of servers that have scores for all benchmarks (using composite key for vendor + server id)
+    # find intersection of servers that have scores for all benchmarks
     all_keys = [Set((c.vendor_id, c.server_id) for c in candidates_per_benchmark[bid]) for bid in benchmark_ids]
     common_keys = intersect(all_keys...)
 
-    # filter to common servers with valid price and same CPU allocation
+    # filter to common servers with valid price, same CPU allocation, and within vCPU range
+    max_vcpus = server_info.vcpus * max_vcpu_multiplier
     first_benchmark_candidates = candidates_per_benchmark[benchmark_ids[1]]
     candidates = filter(first_benchmark_candidates) do server
         (server.vendor_id, server.server_id) in common_keys &&
         !isnothing(server.min_price_ondemand) && server.min_price_ondemand > 0 &&
-        server.cpu_allocation == server_info.cpu_allocation
+        server.cpu_allocation == server_info.cpu_allocation &&
+        server.vcpus <= max_vcpus
+    end
+
+    # fetch config-specific scores for all candidates (parallel API calls)
+    println("Fetching config-specific scores for $(length(candidates)) candidates...")
+    config_scores = fetch_server_benchmarks(candidates, benchmark_configs)
+
+    # filter out candidates that don't have scores for all benchmarks with the requested config
+    candidates = filter(candidates) do server
+        key = (server.vendor_id, server.server_id)
+        haskey(config_scores, key) &&
+        all(bid -> !isnothing(get(config_scores[key], bid, nothing)), benchmark_ids)
+    end
+    println("$(length(candidates)) candidates have scores for all requested configs")
+
+    # get current server's config-specific scores (single API call via get_benchmark_score)
+    current_scores = Dict{String, Float64}()
+    for (bid, bconfig) in benchmark_configs
+        result = get_benchmark_score(vendor, server_id, bid; benchmark_config=bconfig)
+        if isnothing(result)
+            error("Current server $vendor/$server_id has no data for benchmark $bid with requested config")
+        end
+        current_scores[bid] = result.score
     end
 
     return (
@@ -63,19 +75,18 @@ function get_multi_benchmark_data(vendor, server_id, profile)
         benchmark_ids = benchmark_ids,
         weights = weights,
         current_scores = current_scores,
-        current_configs = current_configs,
         candidates = candidates,
-        candidates_per_benchmark = candidates_per_benchmark
+        config_scores = config_scores
     )
 end
 
-function build_score_matrix(candidates, candidates_per_benchmark, benchmark_ids)
+function build_score_matrix(candidates, config_scores, benchmark_ids)
     """
-        Build score matrix for candidates and benchmarks.
+        Build score matrix from config-specific benchmark scores.
 
         # Arguments
         - `candidates`: Vector of candidate server objects
-        - `candidates_per_benchmark`: Dict of benchmark_id => Vector of server objects
+        - `config_scores`: Dict of (vendor_id, server_id) => Dict(benchmark_id => score)
         - `benchmark_ids`: Vector of benchmark IDs
 
         # Returns
@@ -83,22 +94,15 @@ function build_score_matrix(candidates, candidates_per_benchmark, benchmark_ids)
     """
     n_servers = length(candidates)
     n_benchmarks = length(benchmark_ids)
-
-    # map (vendor_id, server_id) to index for quick lookup
-    key_to_idx = Dict((c.vendor_id, c.server_id) => i for (i, c) in enumerate(candidates))
-
-    # build matrix: rows = servers, cols = benchmarks
     scores = zeros(n_servers, n_benchmarks)
 
-    for (b, bid) in enumerate(benchmark_ids)
-        for server in candidates_per_benchmark[bid]
-            key = (server.vendor_id, server.server_id)
-            if haskey(key_to_idx, key)
-                i = key_to_idx[key]
-                score = server.selected_benchmark_score
-                if !isnothing(score)
-                    scores[i, b] = score
-                end
+    for (i, c) in enumerate(candidates)
+        key = (c.vendor_id, c.server_id)
+        server_scores = config_scores[key]
+        for (b, bid) in enumerate(benchmark_ids)
+            score = server_scores[bid]
+            if !isnothing(score)
+                scores[i, b] = score
             end
         end
     end
@@ -185,8 +189,10 @@ end
 # current server (user input)
 # mid range general purpose instance from aws, commonly used for web servers
 vendor_name = "aws"
-server_id = "m5.xlarge"
+server_id = "m6i.xlarge"
 profile_name = "web_server"
+# set the vcpu range of the candidates to be max 2x the current server to avoid comparing tiny instances with monster ones
+max_vcpu_multiplier = 1
 
 # params
 M = 1  # max instances
@@ -354,8 +360,8 @@ function solve_server_selection(vendor_name, server_id, profile_name)
         println("  $v: $count")
     end
 
-    # build candidate score matrix and normalize
-    scores_matrix = build_score_matrix(data.candidates, data.candidates_per_benchmark, data.benchmark_ids)
+    # build candidate score matrix from config-specific scores and normalize
+    scores_matrix = build_score_matrix(data.candidates, data.config_scores, data.benchmark_ids)
     normalized = normalize_scores(scores_matrix)
     composite_scores = compute_composite_scores(normalized, data.weights)
 

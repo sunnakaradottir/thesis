@@ -1,31 +1,182 @@
 {
   "web_server": {
-    "description": "Balanced web application workload - caching, encryption, general compute",
+    "description": "Web application workload representing general SaaS: HTTP serving, caching, encryption, general compute",
     "benchmarks": [
-      {"id": "redis:rps", "weight": 0.4},
-      {"id": "openssl", "weight": 0.35},
-      {"id": "geekbench:score", "weight": 0.25}
-    ]
+      {"id": "static_web:rps", "weight": 0.35, "config": {"size": "64k", "connections_per_vcpus": 4}},
+      {"id": "redis:rps", "weight": 0.30, "config": {"pipeline": 4, "operation": "SET"}},
+      {"id": "openssl", "weight": 0.20, "config": {"algo": "AES-256-CBC", "block_size": 8192}},
+      {"id": "geekbench:score", "weight": 0.15, "config": {"cores": "Multi-Core Performance"}}
+    ],
+    "scales": {
+      "small": {
+        "required_throughput": 1000,
+        "latency_slo_ms": 100,
+        "required_memory_gb": 4,
+        "cpu_headroom": 2
+      },
+      "medium": {
+        "required_throughput": 2000,
+        "latency_slo_ms": 80,
+        "required_memory_gb": 8,
+        "cpu_headroom": 4
+      },
+      "large": {
+        "required_throughput": 4000,
+        "latency_slo_ms": 60,
+        "required_memory_gb": 16,
+        "cpu_headroom": 8
+      },
+      "xlarge": {
+        "required_throughput": 8000,
+        "latency_slo_ms": 40,
+        "required_memory_gb": 32,
+        "cpu_headroom": 16
+      }
+    },
+    "scaling_model": "horizontal"
   },
   "compute_heavy": {
-    "description": "CPU-intensive batch processing and number crunching",
+    "description": "Compute heavy workload representing general data pipelines: CPU-intensive batch processing and number crunching",
     "benchmarks": [
-      {"id": "geekbench:score", "weight": 0.7},
-      {"id": "openssl", "weight": 0.3}
-    ]
+      {"id": "passmark:cpu_mark", "weight": 0.35, "config": null},
+      {"id": "compression_text:compress", "weight": 0.25, "config": {"algo": "gzip", "compression_level": 5, "threads": 1}},
+      {"id": "geekbench:score", "weight": 0.25, "config": {"cores": "Multi-Core Performance"}},
+      {"id": "passmark:cpu_single_threaded_test", "weight": 0.15, "config": null}
+    ],
+    "scales": {
+      "small": {
+          "required_throughput": 500,
+          "latency_slo_ms": 200,
+          "required_memory_gb": 4,
+          "cpu_headroom": 2
+      },
+      "medium": {
+          "required_throughput": 1000,
+          "latency_slo_ms": 150,
+          "required_memory_gb": 8,
+          "cpu_headroom": 4
+      },
+      "large": {
+          "required_throughput": 2000,
+          "latency_slo_ms": 100,
+          "required_memory_gb": 16,
+          "cpu_headroom": 8
+      },
+      "xlarge": {
+          "required_throughput": 4000,
+          "latency_slo_ms": 50,
+          "required_memory_gb": 32,
+          "cpu_headroom": 16
+      }
+    },
+    "scaling_model": "horizontal"
   },
   "cache_intensive": {
-    "description": "In-memory data stores, session management, real-time analytics",
+    "description": "High memory workload representing large datasets: In-memory data stores, session management, real-time analytics",
     "benchmarks": [
-      {"id": "redis:rps", "weight": 0.8},
-      {"id": "geekbench:score", "weight": 0.2}
-    ]
+      {"id": "redis:rps", "weight": 0.45, "config": {"pipeline": 16, "operation": "SET"}},
+      {"id": "passmark:memory_mark", "weight": 0.25, "config": null},
+      {"id": "passmark:database_operations", "weight": 0.15, "config": null},
+      {"id": "geekbench:score", "weight": 0.15, "config": {"cores": "Multi-Core Performance"}}
+    ],
+    "scales": {
+      "small": {
+          "required_throughput": 2000,
+          "latency_slo_ms": 100,
+          "required_memory_gb": 8,
+          "cpu_headroom": 4
+      },
+      "medium": {
+          "required_throughput": 4000,
+          "latency_slo_ms": 80,
+          "required_memory_gb": 16,
+          "cpu_headroom": 8
+      },
+      "large": {
+          "required_throughput": 8000,
+          "latency_slo_ms": 60,
+          "required_memory_gb": 32,
+          "cpu_headroom": 16
+      },
+      "xlarge": {
+          "required_throughput": 16000,
+          "latency_slo_ms": 40,
+          "required_memory_gb": 64,
+          "cpu_headroom": 32
+      }
+    },
+    "scaling_model": "horizontal"
   },
-  "crypto_heavy": {
-    "description": "TLS termination, encryption-heavy workloads",
+  "ml_inference": {
+    "description": "Machine learning inference workload representing real-time AI applications: model serving, natural language processing, computer vision",
     "benchmarks": [
-      {"id": "openssl", "weight": 0.9},
-      {"id": "geekbench:score", "weight": 0.1}
-    ]
+      {"id": "passmark:cpu_floating_point_maths_test", "weight": 0.30, "config": null},
+      {"id": "passmark:cpu_extended_instructions_test", "weight": 0.25, "config": null},
+      {"id": "passmark:cpu_single_threaded_test", "weight": 0.20, "config": null},
+      {"id": "geekbench:score", "weight": 0.25, "config": {"cores": "Multi-Core Performance"}}
+    ],
+    "scales": {
+      "small": {
+          "required_throughput": 100,
+          "latency_slo_ms": 50,
+          "required_memory_gb": 4,
+          "cpu_headroom": 2
+      },
+      "medium": {
+          "required_throughput": 200,
+          "latency_slo_ms": 30,
+          "required_memory_gb": 8,
+          "cpu_headroom": 4
+      },
+      "large": {
+          "required_throughput": 400,
+          "latency_slo_ms": 20,
+          "required_memory_gb": 16,
+          "cpu_headroom": 8
+      },
+      "xlarge": {
+          "required_throughput": 800,
+          "latency_slo_ms": 10,
+          "required_memory_gb": 32,
+          "cpu_headroom": 16
+      }
+    },
+    "scaling_model": "horizontal"
+  },
+  "ci_cd_build": {
+    "description": "CI/CD build workload representing software development pipelines: code compilation, testing, container builds",
+    "benchmarks": [
+      {"id": "geekbench:clang", "weight": 0.30, "config": {"cores": "Multi-Core Performance"}},
+      {"id": "compression_text:compress", "weight": 0.25, "config": {"algo": "gzip", "compression_level": 5, "threads": 1}},
+      {"id": "passmark:cpu_single_threaded_test", "weight": 0.25, "config": null},
+      {"id": "geekbench:file_compression", "weight": 0.20, "config": {"cores": "Multi-Core Performance"}}
+    ],
+    "scales": {
+      "small": {
+          "required_throughput": 50,
+          "latency_slo_ms": 300,
+          "required_memory_gb": 4,
+          "cpu_headroom": 2
+      },
+      "medium": {
+          "required_throughput": 100,
+          "latency_slo_ms": 200,
+          "required_memory_gb": 8,
+          "cpu_headroom": 4
+      },
+      "large": {
+          "required_throughput": 200,
+          "latency_slo_ms": 100,
+          "required_memory_gb": 16,
+          "cpu_headroom": 8
+      },
+      "xlarge": {
+          "required_throughput": 400,
+          "latency_slo_ms": 50,
+          "required_memory_gb": 32,
+          "cpu_headroom": 16
+      }
+    },
+    "scaling_model": "horizontal"
   }
 }

@@ -2,6 +2,14 @@ using HTTP
 using JSON3
 
 
+function config_match(api_val, profile_val)
+    """Compare config values, handling type mismatches (e.g. API returns 4.0, profile has 4)"""
+    if api_val isa Number && profile_val isa Number
+        return isapprox(api_val, profile_val)
+    end
+    return api_val == profile_val
+end
+
 
 function get_servers_by_benchmark(benchmark_id)
     """
@@ -67,7 +75,7 @@ function get_benchmark_score(vendor, server_id, benchmark_id; benchmark_config=n
     if !isnothing(benchmark_config)
         matching = filter(data) do bench
             config = bench.config
-            all(key -> haskey(config, key) && config[key] == benchmark_config[key],
+            all(key -> haskey(config, key) && config_match(config[key], benchmark_config[key]),
                 keys(benchmark_config))
         end
 
@@ -80,6 +88,75 @@ function get_benchmark_score(vendor, server_id, benchmark_id; benchmark_config=n
 
     # No config specified, return first result
     return (score = data[1].score, config = data[1].config)
+end
+
+
+function fetch_server_benchmarks(candidates, benchmark_configs; max_concurrent=10, max_retries=3)
+    """
+        Fetch config-specific benchmark scores for all candidate servers in parallel.
+        Respects API rate limit (300 req/min) with concurrency control and retry with backoff.
+
+        # Arguments
+        - `candidates`: Vector of server objects (from /servers endpoint)
+        - `benchmark_configs`: Vector of (benchmark_id, config_dict_or_nothing) tuples
+        - `max_concurrent`: Max parallel requests (default 10, conservative for rate limits)
+        - `max_retries`: Max retries on 429/transient errors
+
+        # Returns
+        - Dict mapping (vendor_id, server_id) => Dict(benchmark_id => score or nothing)
+    """
+    results = Dict{Tuple{String,String}, Dict{String, Union{Float64,Nothing}}}()
+    total = length(candidates)
+    completed = Threads.Atomic{Int}(0)
+
+    asyncmap(candidates; ntasks=max_concurrent) do server
+        vid = server.vendor_id
+        sid = server.server_id
+
+        for attempt in 1:max_retries
+            try
+                url = "https://keeper.sparecores.net/server/$vid/$sid/benchmarks"
+                response = HTTP.get(url)
+                all_benchmarks = JSON3.read(response.body)
+
+                server_scores = Dict{String, Union{Float64,Nothing}}()
+
+                for (bid, bconfig) in benchmark_configs
+                    matching = filter(b -> b.benchmark_id == bid, all_benchmarks)
+
+                    if !isnothing(bconfig) && !isempty(bconfig)
+                        matching = filter(matching) do bench
+                            config = bench.config
+                            all(key -> haskey(config, key) && config_match(config[key], bconfig[key]),
+                                keys(bconfig))
+                        end
+                    end
+
+                    server_scores[bid] = isempty(matching) ? nothing : matching[1].score
+                end
+
+                results[(vid, sid)] = server_scores
+
+                n = Threads.atomic_add!(completed, 1) + 1
+                if n % 50 == 0
+                    println("  Fetched $n / $total")
+                end
+                break  # success, exit retry loop
+
+            catch e
+                if e isa HTTP.Exceptions.StatusError && e.status == 429
+                    wait_time = 2.0^attempt  # exponential backoff: 2s, 4s, 8s
+                    sleep(wait_time)
+                elseif attempt == max_retries
+                    @warn "Failed to fetch benchmarks for $vid/$sid after $max_retries attempts: $e"
+                else
+                    sleep(1.0)
+                end
+            end
+        end
+    end
+
+    return results
 end
 
 
