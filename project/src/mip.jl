@@ -1,6 +1,7 @@
 include("sparecores.jl")
 using JuMP
 using JSON
+using Printf
 import HiGHS
 
 
@@ -13,6 +14,11 @@ function load_profile(profile_name)
 end
 
 function get_multi_benchmark_data(vendor, server_id, profile)
+    """
+        Fetch hardware specs and benchmark data for the current server according to the defined profile.
+        For each benchmark in the profile, also fetch candidate servers that have scores for that benchmark.
+        Then find the intersection of servers that have scores for all benchmarks, and filter to those with valid price and same CPU allocation.
+    """
     benchmarks = profile["benchmarks"]
     weights = [b["weight"] for b in benchmarks]
     benchmark_ids = [b["id"] for b in benchmarks]
@@ -36,18 +42,18 @@ function get_multi_benchmark_data(vendor, server_id, profile)
         current_scores[bid] = result.score
         current_configs[bid] = result.config
 
-        # candidates for this benchmark (using current server's config)
-        candidates_per_benchmark[bid] = get_servers_by_benchmark(vendor, bid)
+        # candidates for this benchmark from all providers
+        candidates_per_benchmark[bid] = get_servers_by_benchmark(bid)
     end
 
-    # find intersection: servers that have scores for ALL benchmarks
-    all_server_ids = [Set(c.server_id for c in candidates_per_benchmark[bid]) for bid in benchmark_ids]
-    common_ids = intersect(all_server_ids...)
+    # find intersection of servers that have scores for all benchmarks (using composite key for vendor + server id)
+    all_keys = [Set((c.vendor_id, c.server_id) for c in candidates_per_benchmark[bid]) for bid in benchmark_ids]
+    common_keys = intersect(all_keys...)
 
     # filter to common servers with valid price and same CPU allocation
     first_benchmark_candidates = candidates_per_benchmark[benchmark_ids[1]]
     candidates = filter(first_benchmark_candidates) do server
-        server.server_id in common_ids &&
+        (server.vendor_id, server.server_id) in common_keys &&
         !isnothing(server.min_price_ondemand) && server.min_price_ondemand > 0 &&
         server.cpu_allocation == server_info.cpu_allocation
     end
@@ -78,16 +84,17 @@ function build_score_matrix(candidates, candidates_per_benchmark, benchmark_ids)
     n_servers = length(candidates)
     n_benchmarks = length(benchmark_ids)
 
-    # map server_id to index for quick lookup
-    server_id_to_idx = Dict(c.server_id => i for (i, c) in enumerate(candidates))
+    # map (vendor_id, server_id) to index for quick lookup
+    key_to_idx = Dict((c.vendor_id, c.server_id) => i for (i, c) in enumerate(candidates))
 
     # build matrix: rows = servers, cols = benchmarks
     scores = zeros(n_servers, n_benchmarks)
 
     for (b, bid) in enumerate(benchmark_ids)
         for server in candidates_per_benchmark[bid]
-            if haskey(server_id_to_idx, server.server_id)
-                i = server_id_to_idx[server.server_id]
+            key = (server.vendor_id, server.server_id)
+            if haskey(key_to_idx, key)
+                i = key_to_idx[key]
                 score = server.selected_benchmark_score
                 if !isnothing(score)
                     scores[i, b] = score
@@ -98,7 +105,6 @@ function build_score_matrix(candidates, candidates_per_benchmark, benchmark_ids)
 
     return scores
 end
-
 
 function normalize_scores(scores)
     """
@@ -129,13 +135,11 @@ function normalize_scores(scores)
     return normalized
 end
 
-
 function compute_composite_scores(normalized, weights)
     # weighted sum across benchmarks for each server
     return normalized * weights
 end
 
-# TODO: ask Rasmus about preference here on percentile vs min-max
 function normalize_current_scores(current_scores, scores, benchmark_ids)
     """
         Normalize current server's scores using min-max from candidates (not percentiles but rather distribution if that makes sense).
@@ -178,22 +182,23 @@ function normalize_current_scores(current_scores, scores, benchmark_ids)
     return normalized
 end
 
-
 # current server (user input)
+# mid range general purpose instance from aws, commonly used for web servers
 vendor_name = "aws"
-server_id = "c6a.16xlarge"
+server_id = "m5.xlarge"
 profile_name = "web_server"
 
 # params
-M = 50  # max instances
+M = 1  # max instances
 
+# TODO: figure out a way to make the profile more meaningful considering different scales of the workload, e.g. large web server vs a small one
 
-function get_candidate_servers(vendor, benchmark_id, current_allocation; benchmark_config=nothing)
+function get_candidate_servers(benchmark_id, current_allocation; benchmark_config=nothing)
     """
         Get candidate servers for a given benchmark and CPU allocation.
 
         # Arguments
-        - `vendor`: Vendor name (e.g., "aws")
+        - `vendor`: Vendor name (e.g., "aws") -- remove this
         - `benchmark_id`: Benchmark identifier (e.g., "sysbench_cpu")
         - `current_allocation`: CPU allocation of current server (e.g., "dedicated")
 
@@ -203,7 +208,7 @@ function get_candidate_servers(vendor, benchmark_id, current_allocation; benchma
         # Returns
         - Vector of candidate server objects
     """
-    servers = get_servers_by_benchmark(vendor, benchmark_id; benchmark_config=benchmark_config)
+    servers = get_servers_by_benchmark(benchmark_id)
 
     # filter for valid benchmark scores and same CPU allocation
     candidates = filter(servers) do server
@@ -221,7 +226,6 @@ function get_candidate_servers(vendor, benchmark_id, current_allocation; benchma
 
     return candidates
 end
-
 
 function build_model(prices, scores, current_score, current_price)
     n_servers = length(prices)
@@ -248,8 +252,9 @@ function build_model(prices, scores, current_score, current_price)
     return model
 end
 
-
-function extract_solution(model, status, prices, scores, server_ids, display_names, current)
+function extract_solution(model, status, prices, scores, server_ids, display_names, current;
+                          vendor_ids=nothing, benchmark_ids=nothing, raw_scores=nothing, normalized_scores=nothing,
+                          current_raw=nothing, current_normalized=nothing, weights=nothing)
     if status == MOI.OPTIMAL
         println("\n" * "="^60)
         println("OPTIMAL SOLUTION FOUND")
@@ -265,14 +270,36 @@ function extract_solution(model, status, prices, scores, server_ids, display_nam
                 selected_score = scores[i] * num_instances
                 cost_reduction = (current.price - total_cost) / current.price * 100
 
+                vendor_label = !isnothing(vendor_ids) ? vendor_ids[i] : "unknown"
                 println("\nRecommendation:")
+                println("  Provider: $vendor_label")
                 println("  Server: $(display_names[i]) ($(server_ids[i]))")
                 println("  Instances: $num_instances")
-                println("  Total score: $selected_score (vs $(current.score) current)")
+                println("  Total composite score: $(round(selected_score, digits=4)) (vs $(round(current.score, digits=4)) current)")
                 println("  Total cost: \$$(round(total_cost, digits=4))/hr (vs \$$(current.price) current)")
                 println("  Cost reduction: $(round(cost_reduction, digits=2))%")
 
+                # show per-benchmark comparison if data provided
+                if !isnothing(benchmark_ids) && !isnothing(raw_scores) && !isnothing(normalized_scores) && !isnothing(weights)
+                    println("\n  Per-benchmark comparison (suggested server):")
+                    println("  " * "-"^68)
+                    println("  Benchmark                   Score  Weight%   Normalized   Weighted")
+                    println("  " * "-"^68)
+                    for (b, bid) in enumerate(benchmark_ids)
+                        sugg_raw = raw_scores[i, b]
+                        sugg_raw_str = sugg_raw >= 1e6 ? @sprintf("%.2e", sugg_raw) : @sprintf("%.2f", sugg_raw)
+                        weight_pct = round(weights[b] * 100, digits=1)
+                        sugg_norm = round(normalized_scores[i, b], digits=4)
+                        sugg_weighted = round(normalized_scores[i, b] * weights[b], digits=4)
+                        bid_display = length(bid) > 20 ? bid[1:17] * "..." : bid
+                        println("  $(rpad(bid_display, 20)) $(lpad(sugg_raw_str, 12))  $(lpad(string(weight_pct), 5))%   $(lpad(string(sugg_norm), 6))   $(lpad(string(sugg_weighted), 6))")
+                    end
+                    println("  " * "-"^68)
+                    println("  Weighted total: $(round(scores[i], digits=4))")
+                end
+
                 return (
+                    vendor_id = vendor_label,
                     server_id = server_ids[i],
                     display_name = display_names[i],
                     instances = num_instances,
@@ -294,7 +321,6 @@ function extract_solution(model, status, prices, scores, server_ids, display_nam
     end
 end
 
-
 function solve_server_selection(vendor_name, server_id, profile_name)
     println("="^60)
     println("MIP SERVER SELECTION (Multi-Benchmark)")
@@ -313,13 +339,19 @@ function solve_server_selection(vendor_name, server_id, profile_name)
     println("\nCurrent server: $(data.server_info.display_name)")
     println("  Price: \$$(data.server_info.price)/hr")
     println("  CPU allocation: $(data.server_info.cpu_allocation)")
-    for bid in data.benchmark_ids
-        println("  $bid score: $(data.current_scores[bid])")
-    end
 
     println("\nFound $(length(data.candidates)) candidates with all benchmarks")
     if length(data.candidates) == 0
         return nothing
+    end
+
+    # show candidate count per provider
+    vendor_counts = Dict{String, Int}()
+    for c in data.candidates
+        vendor_counts[c.vendor_id] = get(vendor_counts, c.vendor_id, 0) + 1
+    end
+    for (v, count) in sort(collect(vendor_counts), by=x->x[2], rev=true)
+        println("  $v: $count")
     end
 
     # build candidate score matrix and normalize
@@ -331,11 +363,27 @@ function solve_server_selection(vendor_name, server_id, profile_name)
     current_normalized = normalize_current_scores(data.current_scores, scores_matrix, data.benchmark_ids)
     current_composite = sum(current_normalized .* data.weights)
 
-    println("\nCurrent server composite score: $(round(current_composite, digits=4))")
+    # show current server benchmark scores (raw, weight, normalized, weighted contribution)
+    println("\nCurrent server benchmark scores:")
+    println("  " * "-"^68)
+    println("  Benchmark                   Score  Weight%   Normalized   Weighted")
+    println("  " * "-"^68)
+    for (b, bid) in enumerate(data.benchmark_ids)
+        raw = data.current_scores[bid]
+        raw_str = raw >= 1e6 ? @sprintf("%.2e", raw) : @sprintf("%.2f", raw)
+        weight_pct = round(data.weights[b] * 100, digits=1)
+        norm = round(current_normalized[b], digits=4)
+        weighted = round(current_normalized[b] * data.weights[b], digits=4)
+        bid_display = length(bid) > 20 ? bid[1:17] * "..." : bid
+        println("  $(rpad(bid_display, 20)) $(lpad(raw_str, 12))  $(lpad(string(weight_pct), 5))%   $(lpad(string(norm), 6))   $(lpad(string(weighted), 6))")
+    end
+    println("  " * "-"^68)
+    println("  Weighted total: $(round(current_composite, digits=4))")
 
     # extract parameters
     prices = [c.min_price_ondemand for c in data.candidates]
     server_ids = [c.server_id for c in data.candidates]
+    vendor_ids = [c.vendor_id for c in data.candidates]
     display_names = [c.display_name for c in data.candidates]
 
     # build and solve
@@ -349,9 +397,15 @@ function solve_server_selection(vendor_name, server_id, profile_name)
     println("\nSolver status: $status")
 
     current = (price = data.server_info.price, score = current_composite)
-    return extract_solution(model, status, prices, composite_scores, server_ids, display_names, current)
+    return extract_solution(model, status, prices, composite_scores, server_ids, display_names, current;
+                           vendor_ids=vendor_ids,
+                           benchmark_ids=data.benchmark_ids,
+                           raw_scores=scores_matrix,
+                           normalized_scores=normalized,
+                           current_raw=data.current_scores,
+                           current_normalized=current_normalized,
+                           weights=data.weights)
 end
-
 
 # run the optimization
 result = solve_server_selection(vendor_name, server_id, profile_name)
