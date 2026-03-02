@@ -56,29 +56,32 @@ function print_benchmark_table(raw_scores, normalized, benchmark_ids, weights)
     println("  " * "-"^68)
 end
 
-function print_solution(result, current, scores_matrix, normalized, benchmark_ids, weights)
-    """Print the optimization result or infeasibility message"""
-    if isnothing(result)
+function print_solution(results, current, scores_matrix, normalized, benchmark_ids, weights)
+    """Print the Pareto-optimal solutions or infeasibility message"""
+    if isnothing(results)
         println("\nNo feasible solution exists.")
-        println("This means no server configuration can beat the current setup.")
         return
     end
 
-    println("\n" * "="^60)
-    println("OPTIMAL SOLUTION FOUND")
-    println("="^60)
+    # sort by score descending (highest performance first)
+    sorted = sort(results, by=r -> r.total_score, rev=true)
 
-    println("\nRecommendation:")
-    println("  Provider: $(result.vendor_id)")
-    println("  Server: $(result.display_name) ($(result.server_id))")
-    println("  Instances: $(result.instances)")
-    println("  Total composite score: $(round(result.total_score, digits=4)) (vs $(round(current.score, digits=4)) current)")
-    println("  Total cost: \$$(round(result.total_cost, digits=4))/hr (vs \$$(current.price) current)")
-    println("  Cost reduction: $(round(result.cost_reduction, digits=2))%")
+    println("\n" * "="^90)
+    @printf("PARETO-OPTIMAL SOLUTIONS (%d solutions)\n", length(sorted))
+    println("="^90)
+    @printf("Current server: \$%.4f/hr  score: %.4f\n\n", current.price, current.score)
 
-    # per-benchmark comparison for the selected server
-    i = result.selected_index
-    println("\n  Per-benchmark comparison (suggested server):")
-    print_benchmark_table(scores_matrix[i, :], normalized[i, :], benchmark_ids, weights)
-    println("  Weighted total: $(round(result.total_score / result.instances, digits=4))")
+    @printf("%-4s  %-10s  %-24s  %-9s  %-16s  %-16s\n",
+        "Rank", "Provider", "Server", "Instances", "Score (Δ%)", "Cost/hr (Δ%)")
+    println("-"^90)
+
+    for (rank, r) in enumerate(sorted)
+        score_delta = (r.total_score - current.score) / current.score * 100
+        score_str   = @sprintf("%.4f (%+.1f%%)", r.total_score, score_delta)
+        cost_str    = @sprintf("\$%.4f (%+.1f%%)", r.total_cost, -r.cost_reduction)
+        @printf("%-4d  %-10s  %-24s  %-9d  %-16s  %-16s\n",
+            rank, r.vendor_id, r.display_name, r.instances, score_str, cost_str)
+    end
+
+    println("-"^90)
 end

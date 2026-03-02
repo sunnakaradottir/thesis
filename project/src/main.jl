@@ -24,20 +24,21 @@ function solve_server_selection(vendor_name, server_id, profile_name; max_vcpu_m
     print_current_server(data, current_normalized, current_composite)
     print_candidates_summary(data.candidates)
 
-    # 5. build + solve MIP
+    # 5. build + solve bi-objective MIP
     prices = [c.min_price_ondemand for c in data.candidates]
     server_ids = [c.server_id for c in data.candidates]
     vendor_ids = [c.vendor_id for c in data.candidates]
     display_names = [c.display_name for c in data.candidates]
 
     println("\nBuilding MIP model...")
-    model = build_model(prices, composite_scores, current_composite, data.server_info.price, M)
+    model = build_model(prices, composite_scores, M)
 
     println("Solving...")
     optimize!(model)
 
     status = termination_status(model)
     println("\nSolver status: $status")
+    println("Pareto solutions found: $(result_count(model))")
 
     # 6. extract + print result
     current = (price = data.server_info.price, score = current_composite)
