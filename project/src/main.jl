@@ -15,8 +15,7 @@ function solve_server_selection(vendor_name, server_id, profile_name, scale_name
 
     # 3. build scores + normalize
     if isempty(data.candidates)
-        error("No candidates found for profile '$profile_name' at scale '$scale_name'. " *
-              "Try a smaller scale tier.")
+        error("No candidates found for profile '$profile_name' at scale '$scale_name'. " * "Try a smaller scale tier.")
     end
 
     scores_matrix = build_score_matrix(data.candidates, data.config_scores, data.benchmark_ids)

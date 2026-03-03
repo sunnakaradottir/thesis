@@ -76,8 +76,7 @@ function print_solution(results, current)
         score_delta = (r.total_score - current.score) / current.score * 100
         score_str   = @sprintf("%.4f (%+.1f%%)", r.total_score, score_delta)
         cost_str    = @sprintf("\$%.4f (%+.1f%%)", r.total_cost, -r.cost_reduction)
-        @printf("%-4d  %-10s  %-24s  %-16s  %-16s\n",
-            rank, r.vendor_id, r.display_name, score_str, cost_str)
+        @printf("%-4d  %-10s  %-24s  %-16s  %-16s\n", rank, r.vendor_id, r.display_name, score_str, cost_str)
     end
 
     println("-"^90)
