@@ -4,7 +4,7 @@ include("model.jl")
 include("output.jl")
 
 
-function solve_server_selection(vendor_name, server_id, profile_name, scale_name; M=1)
+function solve_server_selection(vendor_name, server_id, profile_name, scale_name)
     # 1. load profile
     profile = load_profile(profile_name)
     print_profile_info(profile_name, profile)
@@ -36,7 +36,7 @@ function solve_server_selection(vendor_name, server_id, profile_name, scale_name
     display_names = [c.display_name for c in data.candidates]
 
     println("\nBuilding IP model...")
-    model = build_model(prices, composite_scores, M)
+    model = build_model(prices, composite_scores)
 
     println("Solving...")
     optimize!(model)
@@ -54,4 +54,4 @@ function solve_server_selection(vendor_name, server_id, profile_name, scale_name
 end
 
 
-result = solve_server_selection("aws", "c6i.2xlarge", "ml_inference", "small"; M=1)
+result = solve_server_selection("aws", "c6i.2xlarge", "ml_inference", "small")

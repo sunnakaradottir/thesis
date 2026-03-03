@@ -1,6 +1,8 @@
 include("sparecores.jl")
 using JSON
 
+const TIER_ORDER = ["small", "medium", "large", "xlarge"]
+
 
 function load_profile(profile_name)
     profiles = JSON.parsefile("config/profiles.json")
@@ -25,14 +27,11 @@ function get_multi_benchmark_data(vendor, server_id, profile, scale_name)
     server_info = get_server_info(vendor, server_id)
 
     # load scale requirements
-    tier_order = ["small", "medium", "large", "xlarge"]
-    tier_idx   = findfirst(==(scale_name), tier_order)
-    scale      = profile["scales"][scale_name]
+    tier_idx      = findfirst(==(scale_name), TIER_ORDER)
+    scale         = profile["scales"][scale_name]
     min_memory_gb = scale["required_memory_gb"]
     min_vcpus     = scale["cpu_headroom"]
-    max_vcpus     = tier_idx < length(tier_order) ?
-                        profile["scales"][tier_order[tier_idx + 1]]["cpu_headroom"] :
-                        typemax(Int)
+    max_vcpus     = tier_idx < length(TIER_ORDER) ? profile["scales"][TIER_ORDER[tier_idx + 1]]["cpu_headroom"] : typemax(Int)
 
     # candidate discovery: use /servers endpoint for each benchmark to find which servers have scores
     candidates_per_benchmark = Dict{String, Vector}()

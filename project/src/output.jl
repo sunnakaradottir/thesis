@@ -23,9 +23,6 @@ end
 
 function print_candidates_summary(candidates)
     println("\nFound $(length(candidates)) candidates with all benchmarks")
-    if length(candidates) == 0
-        return
-    end
 
     # count per provider
     vendor_counts = Dict{String, Int}()
@@ -71,16 +68,16 @@ function print_solution(results, current)
     println("="^90)
     @printf("Current server: \$%.4f/hr  score: %.4f\n\n", current.price, current.score)
 
-    @printf("%-4s  %-10s  %-24s  %-9s  %-16s  %-16s\n",
-        "Rank", "Provider", "Server", "Instances", "Score (Δ%)", "Cost/hr (Δ%)")
+    @printf("%-4s  %-10s  %-24s  %-16s  %-16s\n",
+        "Rank", "Provider", "Server", "Score (Δ%)", "Cost/hr (Δ%)")
     println("-"^90)
 
     for (rank, r) in enumerate(sorted)
         score_delta = (r.total_score - current.score) / current.score * 100
         score_str   = @sprintf("%.4f (%+.1f%%)", r.total_score, score_delta)
         cost_str    = @sprintf("\$%.4f (%+.1f%%)", r.total_cost, -r.cost_reduction)
-        @printf("%-4d  %-10s  %-24s  %-9d  %-16s  %-16s\n",
-            rank, r.vendor_id, r.display_name, r.instances, score_str, cost_str)
+        @printf("%-4d  %-10s  %-24s  %-16s  %-16s\n",
+            rank, r.vendor_id, r.display_name, score_str, cost_str)
     end
 
     println("-"^90)
