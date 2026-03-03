@@ -18,8 +18,8 @@ function get_multi_benchmark_data(vendor, server_id, profile, scale_name)
     """
     benchmarks = profile["benchmarks"]
     weights = [b["weight"] for b in benchmarks]
-    benchmark_ids = [b["id"] for b in benchmarks]
     benchmark_configs = [(b["id"], get(b, "config", nothing)) for b in benchmarks]
+    benchmark_ids = [id for (id, _) in benchmark_configs]
 
     # get current server info (once)
     server_info = get_server_info(vendor, server_id)

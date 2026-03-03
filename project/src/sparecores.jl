@@ -145,32 +145,3 @@ function fetch_server_benchmarks(candidates, benchmark_configs; max_concurrent=2
 end
 
 
-function get_vendors()
-    url = "https://keeper.sparecores.net/vendors"
-    response = HTTP.get(url)
-    data = JSON3.read(response.body)
-    return [v.vendor_id for v in data]
-end
-
-
-function get_current_server_performance(vendor, server_id, benchmark_id; benchmark_config=nothing)
-    """Get combined server info + benchmark score for a single server (used by greedy approach)."""
-    server_info = get_server_info(vendor, server_id)
-    benchmark = get_benchmark_score(vendor, server_id, benchmark_id; benchmark_config=benchmark_config)
-
-    if isnothing(benchmark)
-        error("No benchmark data found for $vendor/$server_id with benchmark $benchmark_id")
-    end
-
-    return (
-        server_id = server_info.server_id,
-        display_name = server_info.display_name,
-        vcpus = server_info.vcpus,
-        cpu_allocation = server_info.cpu_allocation,
-        memory = server_info.memory,
-        score = benchmark.score,
-        config = benchmark.config,
-        price = server_info.price,
-        price_per_performance = benchmark.score > 0 ? server_info.price / benchmark.score : 0.0
-    )
-end

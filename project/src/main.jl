@@ -16,7 +16,7 @@ function solve_server_selection(vendor_name, server_id, profile_name, scale_name
     # 3. build scores + normalize
     if isempty(data.candidates)
         error("No candidates found for profile '$profile_name' at scale '$scale_name'. " *
-              "Try a larger max_vcpu_multiplier or a smaller scale.")
+              "Try a smaller scale tier.")
     end
 
     scores_matrix = build_score_matrix(data.candidates, data.config_scores, data.benchmark_ids)
@@ -48,7 +48,7 @@ function solve_server_selection(vendor_name, server_id, profile_name, scale_name
     # 6. extract + print result
     current = (price = data.server_info.price, score = current_composite)
     result = extract_solution(model, status, prices, composite_scores, server_ids, display_names, vendor_ids, current)
-    print_solution(result, current, scores_matrix, normalized, data.benchmark_ids, data.weights)
+    print_solution(result, current)
 
     return result
 end

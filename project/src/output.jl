@@ -56,7 +56,7 @@ function print_benchmark_table(raw_scores, normalized, benchmark_ids, weights)
     println("  " * "-"^68)
 end
 
-function print_solution(results, current, scores_matrix, normalized, benchmark_ids, weights)
+function print_solution(results, current)
     """Print the Pareto-optimal solutions or infeasibility message"""
     if isnothing(results)
         println("\nNo feasible solution exists.")
