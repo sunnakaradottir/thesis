@@ -88,7 +88,7 @@ function get_benchmark_score(vendor, server_id, benchmark_id; benchmark_config=n
 end
 
 
-function fetch_server_benchmarks(candidates, benchmark_configs; max_concurrent=10, max_retries=3)
+function fetch_server_benchmarks(candidates, benchmark_configs; max_concurrent=20, max_retries=3)
     """Fetch config-specific scores for all candidates in parallel, with rate limit handling."""
     results = Dict{Tuple{String,String}, Dict{String, Union{Float64,Nothing}}}()
     total = length(candidates)

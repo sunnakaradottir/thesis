@@ -6,7 +6,7 @@ const OBJ_SCALE = 10_000
 
 function build_model(prices, scores, M)
     """
-        Bi-objective MIP: maximize composite performance score, minimize hourly cost.
+        Bi-objective IP: maximize composite performance score, minimize hourly cost.
         Uses EpsilonConstraint (MOA) to enumerate the full Pareto front.
         EpsilonConstraint steps through objective values one integer unit at a time, so we scale our continuous normalized floats to integers before building the model. 
         Results are read back using the original values.

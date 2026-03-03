@@ -4,16 +4,21 @@ include("model.jl")
 include("output.jl")
 
 
-function solve_server_selection(vendor_name, server_id, profile_name; max_vcpu_multiplier=1, M=1)
+function solve_server_selection(vendor_name, server_id, profile_name, scale_name; M=1)
     # 1. load profile
     profile = load_profile(profile_name)
     print_profile_info(profile_name, profile)
 
     # 2. fetch data
     println("\nFetching benchmark data...")
-    data = get_multi_benchmark_data(vendor_name, server_id, profile, max_vcpu_multiplier)
+    data = get_multi_benchmark_data(vendor_name, server_id, profile, scale_name)
 
     # 3. build scores + normalize
+    if isempty(data.candidates)
+        error("No candidates found for profile '$profile_name' at scale '$scale_name'. " *
+              "Try a larger max_vcpu_multiplier or a smaller scale.")
+    end
+
     scores_matrix = build_score_matrix(data.candidates, data.config_scores, data.benchmark_ids)
     normalized = normalize_scores(scores_matrix)
     composite_scores = compute_composite_scores(normalized, data.weights)
@@ -24,13 +29,13 @@ function solve_server_selection(vendor_name, server_id, profile_name; max_vcpu_m
     print_current_server(data, current_normalized, current_composite)
     print_candidates_summary(data.candidates)
 
-    # 5. build + solve bi-objective MIP
+    # 5. build + solve bi-objective IP
     prices = [c.min_price_ondemand for c in data.candidates]
     server_ids = [c.server_id for c in data.candidates]
     vendor_ids = [c.vendor_id for c in data.candidates]
     display_names = [c.display_name for c in data.candidates]
 
-    println("\nBuilding MIP model...")
+    println("\nBuilding IP model...")
     model = build_model(prices, composite_scores, M)
 
     println("Solving...")
@@ -48,5 +53,5 @@ function solve_server_selection(vendor_name, server_id, profile_name; max_vcpu_m
     return result
 end
 
-# run
-result = solve_server_selection("aws", "m6i.xlarge", "web_server"; max_vcpu_multiplier=1, M=1)
+
+result = solve_server_selection("aws", "c6i.2xlarge", "ml_inference", "small"; M=1)

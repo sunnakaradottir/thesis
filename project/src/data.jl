@@ -10,7 +10,7 @@ function load_profile(profile_name)
     return profiles[profile_name]
 end
 
-function get_multi_benchmark_data(vendor, server_id, profile, max_vcpu_multiplier)
+function get_multi_benchmark_data(vendor, server_id, profile, scale_name)
     """
         Fetch benchmark data for all candidates and the current server.
         Discovers candidates via the /servers endpoint, filters them, then
@@ -24,6 +24,16 @@ function get_multi_benchmark_data(vendor, server_id, profile, max_vcpu_multiplie
     # get current server info (once)
     server_info = get_server_info(vendor, server_id)
 
+    # load scale requirements
+    tier_order = ["small", "medium", "large", "xlarge"]
+    tier_idx   = findfirst(==(scale_name), tier_order)
+    scale      = profile["scales"][scale_name]
+    min_memory_gb = scale["required_memory_gb"]
+    min_vcpus     = scale["cpu_headroom"]
+    max_vcpus     = tier_idx < length(tier_order) ?
+                        profile["scales"][tier_order[tier_idx + 1]]["cpu_headroom"] :
+                        typemax(Int)
+
     # candidate discovery: use /servers endpoint for each benchmark to find which servers have scores
     candidates_per_benchmark = Dict{String, Vector}()
     for bench in benchmarks
@@ -35,13 +45,16 @@ function get_multi_benchmark_data(vendor, server_id, profile, max_vcpu_multiplie
     all_keys = [Set((c.vendor_id, c.server_id) for c in candidates_per_benchmark[bid]) for bid in benchmark_ids]
     common_keys = intersect(all_keys...)
 
-    # filter to common servers with valid price, same CPU allocation, and within vCPU range
-    max_vcpus = server_info.vcpus * max_vcpu_multiplier
+    # filter to common servers with valid price, same CPU allocation, and within scale vCPU range
+    # min_vcpus (cpu_headroom): floor set by the current scale
+    # max_vcpus (next tier's cpu_headroom): ceiling to keep candidates relevant to this scale
     first_benchmark_candidates = candidates_per_benchmark[benchmark_ids[1]]
     candidates = filter(first_benchmark_candidates) do server
         (server.vendor_id, server.server_id) in common_keys &&
         !isnothing(server.min_price_ondemand) && server.min_price_ondemand > 0 &&
         server.cpu_allocation == server_info.cpu_allocation &&
+        server.memory_amount / 1024 >= min_memory_gb &&
+        server.vcpus >= min_vcpus &&
         server.vcpus <= max_vcpus
     end
 

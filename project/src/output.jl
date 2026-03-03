@@ -3,7 +3,7 @@ using Printf
 
 function print_profile_info(profile_name, profile)
     println("="^60)
-    println("MIP SERVER SELECTION (Multi-Benchmark)")
+    println("SERVER SELECTION")
     println("="^60)
     println("\nProfile: $profile_name")
     println("  $(profile["description"])")
