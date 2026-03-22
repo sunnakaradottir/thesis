@@ -26,8 +26,8 @@ end
 
 function discover_candidates(benchmark_ids, server_info, bounds)
     candidates_per_benchmark = Dict(bid => get_servers_by_benchmark(bid) for bid in benchmark_ids)
-    common_keys = intersect([Set((c.vendor_id, c.server_id) for c in candidates_per_benchmark[bid])
-                             for bid in benchmark_ids]...)
+    common_keys = intersect([Set((c.vendor_id, c.server_id) for c in candidates_per_benchmark[bid]) for bid in benchmark_ids]...)
+    
     return filter(candidates_per_benchmark[benchmark_ids[1]]) do server
         (server.vendor_id, server.server_id) in common_keys &&
         !isnothing(server.min_price_ondemand) && server.min_price_ondemand > 0 &&

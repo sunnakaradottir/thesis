@@ -1,4 +1,5 @@
 include("data.jl")
+include("cache.jl")
 include("scoring.jl")
 include("model.jl")
 include("output.jl")
@@ -9,9 +10,9 @@ function solve_server_selection(vendor_name, server_id, profile_name, scale_name
     profile = load_profile(profile_name)
     print_profile_info(profile_name, profile)
 
-    # 2. fetch data
+    # 2. fetch data (cached to disk after first run)
     println("\nFetching benchmark data...")
-    data = get_multi_benchmark_data(vendor_name, server_id, profile, scale_name)
+    data = fetch_with_cache(vendor_name, server_id, profile_name, profile, scale_name)
 
     # 3. build scores + normalize
     if isempty(data.candidates)
