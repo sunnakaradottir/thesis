@@ -68,7 +68,7 @@ function get_benchmark_score(vendor, server_id, benchmark_id; benchmark_config=n
 end
 
 
-function fetch_server_benchmarks(candidates, benchmark_configs; max_concurrent=20, max_retries=3)
+function fetch_server_benchmarks(candidates, benchmark_configs; max_concurrent=5, max_retries=3)
     results   = Dict{Tuple{String,String}, Dict{String, Union{Float64,Nothing}}}()
     total     = length(candidates)
     completed = Threads.Atomic{Int}(0)
