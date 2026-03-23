@@ -1,10 +1,10 @@
 {
   "web_server": {
-    "description": "Web application workload representing general SaaS: HTTP serving, caching, encryption, general compute",
+    "description": "Web application workload representing general SaaS: HTTP serving, caching, encryption, general compute (where TLS termination occurs on the instance)",
     "benchmarks": [
-      {"id": "static_web:rps", "weight": 0.35, "config": {"size": "64k", "connections_per_vcpus": 4}},
+      {"id": "static_web:rps-extrapolated", "weight": 0.4, "config": {"size": "64k", "connections_per_vcpus": 4}},
       {"id": "redis:rps", "weight": 0.30, "config": {"pipeline": 4, "operation": "SET"}},
-      {"id": "openssl", "weight": 0.20, "config": {"algo": "AES-256-CBC", "block_size": 8192}},
+      {"id": "openssl", "weight": 0.15, "config": {"algo": "AES-256-CBC", "block_size": 8192}},
       {"id": "geekbench:score", "weight": 0.15, "config": {"cores": "Multi-Core Performance"}}
     ],
     "scales": {
@@ -32,8 +32,7 @@
         "required_memory_gb": 32,
         "cpu_headroom": 16
       }
-    },
-    "scaling_model": "horizontal"
+    }
   },
   "compute_heavy": {
     "description": "Compute heavy workload representing general data pipelines: CPU-intensive batch processing and number crunching",
@@ -41,7 +40,8 @@
       {"id": "passmark:cpu_mark", "weight": 0.35, "config": null},
       {"id": "compression_text:compress", "weight": 0.25, "config": {"algo": "gzip", "compression_level": 5, "threads": 1}},
       {"id": "geekbench:score", "weight": 0.25, "config": {"cores": "Multi-Core Performance"}},
-      {"id": "passmark:cpu_single_threaded_test", "weight": 0.15, "config": null}
+      {"id": "passmark:cpu_single_threaded_test", "weight": 0.05, "config": null},
+      {"id": "passmark:memory_mark", "weight": 0.1, "config": null}
     ],
     "scales": {
       "small": {
@@ -68,8 +68,7 @@
           "required_memory_gb": 32,
           "cpu_headroom": 16
       }
-    },
-    "scaling_model": "horizontal"
+    }
   },
   "cache_intensive": {
     "description": "High memory workload representing large datasets: In-memory data stores, session management, real-time analytics",
@@ -104,16 +103,17 @@
           "required_memory_gb": 64,
           "cpu_headroom": 32
       }
-    },
-    "scaling_model": "horizontal"
+    }
   },
   "ml_inference": {
     "description": "Machine learning inference workload representing real-time AI applications: model serving, natural language processing, computer vision",
     "benchmarks": [
       {"id": "passmark:cpu_floating_point_maths_test", "weight": 0.30, "config": null},
       {"id": "passmark:cpu_extended_instructions_test", "weight": 0.25, "config": null},
-      {"id": "passmark:cpu_single_threaded_test", "weight": 0.20, "config": null},
-      {"id": "geekbench:score", "weight": 0.25, "config": {"cores": "Multi-Core Performance"}}
+      {"id": "passmark:cpu_single_threaded_test", "weight": 0.10, "config": null},
+      {"id": "geekbench:score", "weight": 0.25, "config": {"cores": "Multi-Core Performance"}},
+      {"id": "llm_speed", "weight": 0.05, "config": null},
+      {"id": "llm_speed:text_generation", "weight": 0.05, "config": null}
     ],
     "scales": {
       "small": {
@@ -140,8 +140,7 @@
           "required_memory_gb": 32,
           "cpu_headroom": 16
       }
-    },
-    "scaling_model": "horizontal"
+    }
   },
   "ci_cd_build": {
     "description": "CI/CD build workload representing software development pipelines: code compilation, testing, container builds",
@@ -176,7 +175,6 @@
           "required_memory_gb": 32,
           "cpu_headroom": 16
       }
-    },
-    "scaling_model": "horizontal"
+    }
   }
 }
