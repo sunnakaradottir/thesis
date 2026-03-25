@@ -29,7 +29,7 @@ function with_retry(f; max_retries=3)
             if attempt == max_retries
                 rethrow()
             elseif e isa HTTP.Exceptions.StatusError && e.status == 429
-                sleep(2.0^attempt)
+                sleep(8.0^attempt)
             else
                 sleep(1.0)
             end
