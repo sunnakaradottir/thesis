@@ -4,6 +4,8 @@ include("scoring.jl")
 include("model.jl")
 include("output.jl")
 
+using JSON
+
 
 function solve_server_selection(vendor_name, server_id, profile_name, scale_name)
     # 1. load profile
@@ -54,4 +56,8 @@ function solve_server_selection(vendor_name, server_id, profile_name, scale_name
 end
 
 
-result = solve_server_selection("aws", "c6i.2xlarge", "ml_inference", "small")
+test_cases = JSON.parsefile(joinpath(@__DIR__, "..", "config", "test_cases.json"))["test_cases"]
+
+for (profile_name, tc) in test_cases
+    solve_server_selection(tc["vendor"], tc["scales"]["medium"], profile_name, "medium")
+end
