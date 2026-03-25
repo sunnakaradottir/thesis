@@ -1,0 +1,60 @@
+{
+  "description": "Representative starting servers for each profile, based on AWS recommended instance families for each workload type. All instances are current-generation Intel x86, sized to match scale tier vCPU minimums. AWS is used as the baseline provider as the leading cloud provider by market share.",
+  "test_cases": {
+    "web_server": {
+      "vendor": "aws",
+      "family": "m7i",
+      "rationale": "General purpose family recommended by AWS for web applications and SaaS workloads",
+      "scales": {
+        "small":  "m7i.large",
+        "medium": "m7i.xlarge",
+        "large":  "m7i.2xlarge",
+        "xlarge": "m7i.4xlarge"
+      }
+    },
+    "compute_heavy": {
+      "vendor": "aws",
+      "family": "c7i",
+      "rationale": "Compute optimized family recommended by AWS for batch processing and compute-intensive workloads",
+      "scales": {
+        "small":  "c7i.large",
+        "medium": "c7i.xlarge",
+        "large":  "c7i.2xlarge",
+        "xlarge": "c7i.4xlarge"
+      }
+    },
+    "cache_intensive": {
+      "vendor": "aws",
+      "family": "r7i",
+      "rationale": "Memory optimized family recommended by AWS for in-memory databases and data stores",
+      "scales": {
+        "small":  "r7i.xlarge",
+        "medium": "r7i.2xlarge",
+        "large":  "r7i.4xlarge",
+        "xlarge": "r7i.8xlarge"
+      }
+    },
+    "ml_inference": {
+      "vendor": "aws",
+      "family": "c7i",
+      "rationale": "Compute optimized family for CPU-based ML inference workloads (floating point and SIMD intensive)",
+      "scales": {
+        "small":  "c7i.large",
+        "medium": "c7i.xlarge",
+        "large":  "c7i.2xlarge",
+        "xlarge": "c7i.4xlarge"
+      }
+    },
+    "ci_cd_build": {
+      "vendor": "aws",
+      "family": "c7i",
+      "rationale": "Compute optimized family for CPU-bound compilation and build workloads",
+      "scales": {
+        "small":  "c7i.large",
+        "medium": "c7i.xlarge",
+        "large":  "c7i.2xlarge",
+        "xlarge": "c7i.4xlarge"
+      }
+    }
+  }
+}

@@ -110,10 +110,8 @@
     "benchmarks": [
       {"id": "passmark:cpu_floating_point_maths_test", "weight": 0.30, "config": null},
       {"id": "passmark:cpu_extended_instructions_test", "weight": 0.25, "config": null},
-      {"id": "passmark:cpu_single_threaded_test", "weight": 0.10, "config": null},
-      {"id": "geekbench:score", "weight": 0.25, "config": {"cores": "Multi-Core Performance"}},
-      {"id": "llm_speed", "weight": 0.05, "config": null},
-      {"id": "llm_speed:text_generation", "weight": 0.05, "config": null}
+      {"id": "passmark:cpu_single_threaded_test", "weight": 0.15, "config": null},
+      {"id": "geekbench:score", "weight": 0.3, "config": {"cores": "Multi-Core Performance"}}
     ],
     "scales": {
       "small": {
