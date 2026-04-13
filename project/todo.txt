@@ -1,0 +1,3 @@
+- Filter for region in current server and in candidates
+- Make a config document for additional cost benefits / additional costs (OVH has no read/write costs for storage servers - and some other stuff) that should be reflected in final choice
+- Refactor everything excluding sparecores.jl to match typescript setup in Cloud performance lab repo
